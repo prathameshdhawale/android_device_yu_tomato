@@ -18,8 +18,8 @@
 set -e
 
 # Required!
-export DEVICE=mobee01a
+export DEVICE=tomato
 export DEVICE_COMMON=msm8916-common
-export VENDOR=LYF
+export VENDOR=yu
 
 ./../../$VENDOR/$DEVICE_COMMON/extract-files.sh $@
