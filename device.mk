@@ -16,7 +16,7 @@
 #
 
 # Inherit from msm8916-common
-$(call inherit-product, device/LYF/msm8916-common/msm8916.mk)
+$(call inherit-product, device/cyanogen/msm8916-common/msm8916.mk)
 
 # Overlay
 DEVICE_PACKAGE_OVERLAYS += $(LOCAL_PATH)/overlay
@@ -116,4 +116,4 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/wifi/WCNSS_qcom_wlan_nv.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/wlan/prima/WCNSS_qcom_wlan_nv.bin
 
 # Call the proprietary setup
-$(call inherit-product, vendor/LYF/mobee01a/mobee01a-vendor.mk)
+$(call inherit-product, vendor/yu/tomato/tomato-vendor.mk)
