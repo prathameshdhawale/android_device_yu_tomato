@@ -49,6 +49,7 @@ BOARD_KERNEL_SEPARATED_DT := true
 LZMA_RAMDISK_TARGETS := recovery
 TARGET_KERNEL_CONFIG := lineageos_tomato_defconfig
 BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
+TARGET_KERNEL_SOURCE := kernel/cyanogen/msm8916
 
 # Properties
 TARGET_SYSTEM_PROP := device/yu/tomato/system.prop
