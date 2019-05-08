@@ -116,7 +116,7 @@ int SensorBase::openInput(const char* inputName) {
     dir = opendir(dirname);
     if(dir == NULL)
         return -1;
-    strcpy(devname, dirname);
+    strlcpy(devname, dirname, PATH_MAX);
     filename = devname + strlen(devname);
     *filename++ = '/';
     while((de = readdir(dir))) {
@@ -124,7 +124,7 @@ int SensorBase::openInput(const char* inputName) {
                 (de->d_name[1] == '\0' ||
                         (de->d_name[1] == '.' && de->d_name[2] == '\0')))
             continue;
-        strcpy(filename, de->d_name);
+        strlcpy(filename, de->d_name, PATH_MAX - strlen(SYSFS_CLASS));
         fd = open(devname, O_RDONLY);
         if (fd>=0) {
             char name[80];
@@ -132,7 +132,7 @@ int SensorBase::openInput(const char* inputName) {
                 name[0] = '\0';
             }
             if (!strcmp(name, inputName)) {
-                strcpy(input_name, filename);
+                strlcpy(input_name, filename, PATH_MAX);
                 break;
             } else {
                 close(fd);
@@ -151,13 +151,13 @@ int SensorBase::injectEvents(sensors_event_t*, int)
         return 0;
 }
 
-int SensorBase::calibrate(int32_t handle, struct cal_cmd_t *para,
-        struct cal_result_t *outpara)
+int SensorBase::calibrate(int32_t, struct cal_cmd_t*,
+                 struct cal_result_t*)
 {
         return -1;
 }
 
-int SensorBase::initCalibrate(int32_t handle, struct cal_result_t *prar)
+int SensorBase::initCalibrate(int32_t, struct cal_result_t*)
 {
         return -1;
 }
@@ -215,7 +215,8 @@ int SensorBase::flush(int32_t handle)
         }
 
         /* sensors have FIFO: call into driver */
-        if (ctx->sensor->fifoMaxEventCount) {
+        if ((ctx->sensor->fifoMaxEventCount) || (ctx->sensor->type == SENSOR_TYPE_LIGHT)
+			|| (ctx->sensor->type == SENSOR_TYPE_PROXIMITY)) {
                 strlcpy(&input_sysfs_path[input_sysfs_path_len],
                                 SYSFS_FLUSH, SYSFS_MAXLEN);
                 fd = open(input_sysfs_path, O_RDWR);

@@ -24,7 +24,8 @@
 #include <dirent.h>
 #include <sys/select.h>
 #include <cutils/log.h>
-
+#include <cutils/properties.h>
+#include <stdlib.h>
 #include "AccelSensor.h"
 #include "sensors.h"
 
@@ -35,22 +36,25 @@
 #define	EVENT_TYPE_ACCEL_Y	ABS_Y
 #define	EVENT_TYPE_ACCEL_Z	ABS_Z
 
-#define ACCEL_CONVERT		((GRAVITY_EARTH) / 16384) /* (4 * 1G / 2^16) */
-#define CONVERT_ACCEL_X		-ACCEL_CONVERT
-#define CONVERT_ACCEL_Y		ACCEL_CONVERT
-#define CONVERT_ACCEL_Z		-ACCEL_CONVERT
+#define ACCEL_CONVERT		(1.0f/1000000)//((GRAVITY_EARTH) / 16384) /* (4 * 1G / 2^16) */ // as to GRAVITY_HAL_UNIT in driver,qi.qi
+#define CONVERT_ACCEL_X		(ACCEL_CONVERT)
+#define CONVERT_ACCEL_Y		(ACCEL_CONVERT)
+#define CONVERT_ACCEL_Z		(-ACCEL_CONVERT)
 
-#define ACCEL_SENSOR_NAME	"mpu6880"
-#define ACCEL_SYSFS_PATH	"/sys/class/input/input0/"
-#define ACCEL_ENABLE		"accel_enable"
-#define ACCEL_DELAY		"accel_delay"
+#define ACCEL_CONVERT_R		((GRAVITY_EARTH) / 16384) /* (4 * 1G / 2^16) */
+#define CONVERT_ACCEL_RX	(-ACCEL_CONVERT_R)
+#define CONVERT_ACCEL_RY	(ACCEL_CONVERT_R)
+#define CONVERT_ACCEL_RZ	(-ACCEL_CONVERT_R)
 
-#define SMOOTHING_FACTOR    0.8
+#define SYSFS_I2C_SLAVE_PATH	"/device/device/"
+#define SYSFS_INPUT_DEV_PATH	"/device/"
+
+#define ARRAY	3
 
 /*****************************************************************************/
 
 AccelSensor::AccelSensor()
-	: SensorBase(NULL, ACCEL_SENSOR_NAME),
+	: SensorBase(NULL, "accelerometer"),
 	  mInputReader(4),
 	  mHasPendingEvent(false),
 	  mEnabledTime(0)
@@ -62,7 +66,38 @@ AccelSensor::AccelSensor()
 	mPendingEvent.acceleration.status = SENSOR_STATUS_ACCURACY_HIGH;
 
 	if (data_fd) {
-		strlcpy(input_sysfs_path, ACCEL_SYSFS_PATH, sizeof(input_sysfs_path));
+		strlcpy(input_sysfs_path, "/sys/class/input/", sizeof(input_sysfs_path));
+		strlcat(input_sysfs_path, input_name, sizeof(input_sysfs_path));
+		strlcat(input_sysfs_path, SYSFS_I2C_SLAVE_PATH, sizeof(input_sysfs_path));
+		input_sysfs_path_len = strlen(input_sysfs_path);
+#ifdef TARGET_8610
+		if (access(input_sysfs_path, F_OK)) {
+			input_sysfs_path_len -= strlen(SYSFS_I2C_SLAVE_PATH);
+			strlcpy(&input_sysfs_path[input_sysfs_path_len],
+					SYSFS_INPUT_DEV_PATH, SYSFS_MAXLEN);
+			input_sysfs_path_len += strlen(SYSFS_INPUT_DEV_PATH);
+		}
+#endif
+		enable(0, 1);
+	}
+}
+
+AccelSensor::AccelSensor(char *name)
+	: SensorBase(NULL, "accelerometer"),
+	  mInputReader(4),
+	  mHasPendingEvent(false),
+	  mEnabledTime(0)
+{
+	mPendingEvent.version = sizeof(sensors_event_t);
+	mPendingEvent.sensor = SENSORS_ACCELERATION_HANDLE;
+	mPendingEvent.type = SENSOR_TYPE_ACCELEROMETER;
+	memset(mPendingEvent.data, 0, sizeof(mPendingEvent.data));
+	mPendingEvent.acceleration.status = SENSOR_STATUS_ACCURACY_HIGH;
+
+	if (data_fd) {
+		strlcpy(input_sysfs_path, SYSFS_CLASS, sizeof(input_sysfs_path));
+		strlcat(input_sysfs_path, name, sizeof(input_sysfs_path));
+		strlcat(input_sysfs_path, "/", sizeof(input_sysfs_path));
 		input_sysfs_path_len = strlen(input_sysfs_path);
 		ALOGI("The accel sensor path is %s",input_sysfs_path);
 		enable(0, 1);
@@ -70,7 +105,7 @@ AccelSensor::AccelSensor()
 }
 
 AccelSensor::AccelSensor(SensorContext *context)
-	: SensorBase(NULL, ACCEL_SENSOR_NAME, context),
+	: SensorBase(NULL, NULL, context),
 	  mInputReader(4),
 	  mHasPendingEvent(false),
 	  mEnabledTime(0)
@@ -81,9 +116,9 @@ AccelSensor::AccelSensor(SensorContext *context)
 	memset(mPendingEvent.data, 0, sizeof(mPendingEvent.data));
 	mPendingEvent.acceleration.status = SENSOR_STATUS_ACCURACY_HIGH;
 
-	strlcpy(input_sysfs_path, ACCEL_SYSFS_PATH, sizeof(input_sysfs_path));
+	strlcpy(input_sysfs_path, context->enable_path, sizeof(input_sysfs_path));
 	input_sysfs_path_len = strlen(input_sysfs_path);
-	context->data_fd = data_fd;
+	data_fd = context->data_fd;
 	ALOGI("The accel sensor path is %s",input_sysfs_path);
 	mUseAbsTimeStamp = false;
 	enable(0, 1);
@@ -97,10 +132,18 @@ AccelSensor::~AccelSensor() {
 
 int AccelSensor::enable(int32_t, int en) {
 	int flags = en ? 1 : 0;
+	char propBuf[PROPERTY_VALUE_MAX];
+	property_get("sensors.accel.loopback", propBuf, "0");
+	if (strcmp(propBuf, "1") == 0) {
+		ALOGE("sensors.accel.loopback is set");
+		mEnabled = flags;
+		return 0;
+	}
+
 	if (flags != mEnabled) {
 		int fd;
 		strlcpy(&input_sysfs_path[input_sysfs_path_len],
-				ACCEL_ENABLE, SYSFS_MAXLEN);
+				SYSFS_ENABLE, SYSFS_MAXLEN);
 		fd = open(input_sysfs_path, O_RDWR);
 		if (fd >= 0) {
 			char buf[2];
@@ -130,13 +173,19 @@ bool AccelSensor::hasPendingEvents() const {
 int AccelSensor::setDelay(int32_t, int64_t delay_ns)
 {
 	int fd;
+	char propBuf[PROPERTY_VALUE_MAX];
+	property_get("sensors.accel.loopback", propBuf, "0");
+	if (strcmp(propBuf, "1") == 0) {
+		ALOGE("sensors.accel.loopback is set");
+		return 0;
+	}
 	int delay_ms = delay_ns / 1000000;
 	strlcpy(&input_sysfs_path[input_sysfs_path_len],
-			ACCEL_DELAY, SYSFS_MAXLEN);
+			SYSFS_POLL_DELAY, SYSFS_MAXLEN);
 	fd = open(input_sysfs_path, O_RDWR);
 	if (fd >= 0) {
 		char buf[80];
-		sprintf(buf, "%d", delay_ms);
+		snprintf(buf, sizeof(buf), "%d", delay_ms);
 		write(fd, buf, strlen(buf)+1);
 		close(fd);
 		return 0;
@@ -183,21 +232,27 @@ again:
 				mPendingEvent.data[1] = value * CONVERT_ACCEL_Y;
 			} else if (event->code == EVENT_TYPE_ACCEL_Z) {
 				mPendingEvent.data[2] = value * CONVERT_ACCEL_Z;
+			} else if (event->code == ABS_RX) {
+				mPendingEvent.data[0] = value * CONVERT_ACCEL_RX;
+			} else if (event->code == ABS_RY) {
+				mPendingEvent.data[1] = value * CONVERT_ACCEL_RY;
+			} else if (event->code == ABS_RZ) {
+				mPendingEvent.data[2] = value * CONVERT_ACCEL_RZ;
 			}
 		} else if (type == EV_SYN) {
-			switch ( event->code ){
+			switch (event->code){
 				case SYN_TIME_SEC:
 					{
 						mUseAbsTimeStamp = true;
 						report_time = event->value*1000000000LL;
 					}
-				break;
+					break;
 				case SYN_TIME_NSEC:
 					{
 						mUseAbsTimeStamp = true;
 						mPendingEvent.timestamp = report_time+event->value;
 					}
-				break;
+					break;
 				case SYN_REPORT:
 					{
 						if(mUseAbsTimeStamp != true) {
@@ -211,7 +266,7 @@ again:
 							count--;
 						}
 					}
-				break;
+					break;
 			}
 		} else {
 			ALOGE("AccelSensor: unknown event (type=%d, code=%d)",
@@ -233,3 +288,110 @@ again:
 	return numEventReceived;
 }
 
+int AccelSensor::calibrate(int32_t, struct cal_cmd_t *para,
+				struct cal_result_t *cal_result)
+{
+	int fd;
+	char temp[ARRAY][LENGTH];
+	char buf[ARRAY * LENGTH];
+	char *token, *strsaveptr, *endptr;
+	int i, err;
+	off_t offset;
+	int para1 = 0;
+
+	if (para == NULL || cal_result == NULL) {
+		ALOGE("Null pointer calibrate parameters\n");
+		return -1;
+	}
+	para1 = CMD_CAL(para->axis, para->apply_now);
+	strlcpy(&input_sysfs_path[input_sysfs_path_len],
+			SYSFS_CALIBRATE, SYSFS_MAXLEN);
+	fd = open(input_sysfs_path, O_RDWR);
+	if (fd >= 0) {
+		snprintf(buf, sizeof(buf), "%d", para1);
+		write(fd, buf, strlen(buf)+1);
+	} else {
+		ALOGE("open %s failed\n", input_sysfs_path);
+		return -1;
+	}
+	offset = lseek(fd, 0, SEEK_SET);
+	char *p = buf;
+	memset(buf, 0, sizeof(buf));
+	err = read(fd, buf, sizeof(buf)-1);
+	if(err < 0) {
+		ALOGE("read error\n");
+		close(fd);
+		return err;
+	}
+	for(i = 0; i < ARRAY; i++, p = NULL) {
+		token = strtok_r(p, ",", &strsaveptr);
+		if(token == NULL)
+			break;
+		if(strlen(token) > LENGTH - 1) {
+			ALOGE("token is too long\n");
+			close(fd);
+			return -1;
+		}
+		strlcpy(temp[i], token, sizeof(temp[i]));
+	}
+	close(fd);
+	for(int i = 0; i < ARRAY; i++) {
+		cal_result->offset[i] = strtol(temp[i], &endptr, 0);
+		if (endptr == temp[i]) {
+			ALOGE("No digits were found\n");
+			return -1;
+		}
+	}
+	return 0;
+}
+
+int AccelSensor::initCalibrate(int32_t, struct cal_result_t *cal_result)
+{
+	int fd, i, err;
+	char buf[LENGTH];
+	int arry[] = {CMD_W_OFFSET_X, CMD_W_OFFSET_Y, CMD_W_OFFSET_Z};
+
+	if (cal_result == NULL) {
+		ALOGE("Null pointer initcalibrate parameter\n");
+		return -1;
+	}
+	strlcpy(&input_sysfs_path[input_sysfs_path_len],
+			SYSFS_CALIBRATE, SYSFS_MAXLEN);
+	fd = open(input_sysfs_path, O_RDWR);
+	if (fd >= 0) {
+		int para1 = 0;
+
+		for(i = 0; i < (int)ARRAY_SIZE(arry); ++i) {
+			para1 = SET_CMD_H(cal_result->offset[i], arry[i]);
+			snprintf(buf, sizeof(buf), "%d", para1);
+			err = write(fd, buf, strlen(buf)+1);
+			if(err < 0) {
+				ALOGE("write error\n");
+				close(fd);
+				return err;
+			}
+
+			memset(buf, 0, sizeof(buf));
+			para1 = SET_CMD_L(cal_result->offset[i], arry[i]);
+			snprintf(buf, sizeof(buf), "%d", para1);
+			err = write(fd, buf, strlen(buf)+1);
+			if(err < 0) {
+				ALOGE("write error\n");
+				close(fd);
+				return err;
+			}
+		}
+		memset(buf, 0, sizeof(buf));
+		snprintf(buf, sizeof(buf), "%d", CMD_COMPLETE);
+		err = write(fd, buf, strlen(buf)+1);
+		if(err < 0) {
+			ALOGE("write error\n");
+			close(fd);
+			return err;
+		}
+		close(fd);
+		return 0;
+	}
+	ALOGE("open %s error\n", input_sysfs_path);
+	return -1;
+}

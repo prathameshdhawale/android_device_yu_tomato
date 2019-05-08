@@ -35,7 +35,10 @@
 #include "AccelSensor.h"
 #include "LightSensor.h"
 #include "ProximitySensor.h"
+#include "AkmSensor.h"
+#include "CompassSensor.h"
 #include "GyroSensor.h"
+#include "PressureSensor.h"
 
 #include "NativeSensorManager.h"
 #include "sensors_extension.h"
@@ -219,7 +222,7 @@ int sensors_poll_context_t::calibrate(int handle, struct cal_cmd_t *para)
 	NativeSensorManager& sm(NativeSensorManager::getInstance());
 	Mutex::Autolock _l(mLock);
 
-	//err = sm.calibrate(handle, para);
+	err = sm.calibrate(handle, para);
 
 	return err;
 }
