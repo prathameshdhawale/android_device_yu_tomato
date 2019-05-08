@@ -67,7 +67,7 @@ PRODUCT_COPY_FILES += \
 
 # Lights
 PRODUCT_PACKAGES += \
-    android.hardware.light@2.0-service.mobee01a
+    android.hardware.light@2.0-service.tomato
 
 # Media
 PRODUCT_COPY_FILES += \
