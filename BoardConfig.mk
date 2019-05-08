@@ -51,7 +51,7 @@ TARGET_KERNEL_CONFIG := lineageos_tomato_defconfig
 BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
 
 # Properties
-TARGET_SYSTEM_PROP += $(DEVICE_PATH)/system.prop
+TARGET_SYSTEM_PROP := device/yu/tomato/system.prop
 
 # Recovery
 TARGET_RECOVERY_DENSITY := xhdpi
