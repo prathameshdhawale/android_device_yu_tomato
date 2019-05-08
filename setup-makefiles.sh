@@ -21,8 +21,8 @@ set -e
 export DEVICE_BRINGUP_YEAR=2015
 
 # Required!
-export DEVICE=mobee01a
+export DEVICE=yu
 export DEVICE_COMMON=msm8916-common
-export VENDOR=LYF
+export VENDOR=yu
 
 ./../../$VENDOR/$DEVICE_COMMON/setup-makefiles.sh $@
