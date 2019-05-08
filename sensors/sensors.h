@@ -45,7 +45,7 @@ __BEGIN_DECLS
 
 #define MAX_SENSORS		(20)
 #define SYSFS_MAXLEN		(50)
-#define SYSFS_CLASS		"/sys/class/sensors/"
+#define SYSFS_CLASS		"/sys/class/input/"
 #define SYSFS_NAME		"name"
 #define SYSFS_VENDOR		"vendor"
 #define SYSFS_VERSION		"version"
@@ -95,7 +95,6 @@ __BEGIN_DECLS
 #define STEP_COUNTER_NAME		"step_counter"
 #define STEP_DETECTOR_NAME		"step_detector"
 #define GEOMAGNETIC_ROTATION_VECTOR_NAME	"geomagnetic_field"
-#define POCKET_NAME			"pocket"
 
 /* The hardware sensor type supported by HAL */
 #define SUPPORTED_SENSORS_TYPE	( \
@@ -152,8 +151,6 @@ static inline const char* type_to_name(int type)
 			return STEP_COUNTER_NAME;
 		case SENSOR_TYPE_GEOMAGNETIC_ROTATION_VECTOR:
 			return GEOMAGNETIC_ROTATION_VECTOR_NAME;
-		case SENSOR_TYPE_POCKET:
-			return POCKET_NAME;
 		default:
 			return "";
 	}

@@ -28,6 +28,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------*/
 
 #include <stdio.h>
+#include <string.h>
 #include <CalibrationModule.h>
 #include <sensors.h>
 
@@ -39,7 +40,6 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "compass/AKFS_AOC.h"
 #include "compass/AKFS_Math.h"
 #include "compass/AKFS_VNorm.h"
-#include "st480_compass/st480_algo.h"
 
 #define SENSOR_CAL_ALGO_VERSION 1
 #define AKM_MAG_SENSE                   (1.0)
@@ -108,33 +108,6 @@ static AKMPRMS g_prms;
 static float last_pocket = -1.0f;
 static float last_light = -1.0f;
 static float last_proximity = -1.0f;
-
-static int st480_convert_magnetic(sensors_event_t *raw, sensors_event_t *result,
-		struct sensor_algo_args *args __attribute__((unused)))
-{
-	if (raw->type == SENSOR_TYPE_MAGNETIC_FIELD) {
-        st480_t st480_raw;
-        int level = -1;
-        float values[3];
-
-        st480_raw.mag_x = raw->magnetic.x;
-        st480_raw.mag_y = raw->magnetic.y;
-        st480_raw.mag_z = raw->magnetic.z;
-
-        st480_run_library(st480_raw);
-        get_calilevel_value(&level);
-        get_magnetic_values(values);
-
-        result->magnetic.x = values[0];
-        result->magnetic.y = values[1];
-        result->magnetic.z = values[2];
-        result->magnetic.status = level;
-
-        return 0;
-    }
-
-    return -EAGAIN;
-}
 
 static int convert_magnetic(sensors_event_t *raw, sensors_event_t *result,
 		struct sensor_algo_args *args __attribute__((unused)))
@@ -227,9 +200,6 @@ static int convert_orientation(sensors_event_t *raw, sensors_event_t *result,
 	float av;
 	float pitch, roll, azimuth;
 	const float rad2deg = 180 / M_PI;
-	float values[3] = {0};
-	float acc_m[3] = {0};
-	float mag_m[3] = {0};
 
 	static struct sensor_vec mag, acc;
 
@@ -247,19 +217,6 @@ static int convert_orientation(sensors_event_t *raw, sensors_event_t *result,
 
 	av = sqrtf(acc.x*acc.x + acc.y*acc.y + acc.z*acc.z);
 	if (av >= DBL_EPSILON) {
-#if st480_compass
-		acc_m[0] = acc.x;
-		acc_m[1] = acc.y;
-		acc_m[2] = acc.z;
-		mag_m[0] = mag.x;
-		mag_m[1] = mag.y;
-		mag_m[2] = mag.z;
-
-		get_oritation_values(mag_m, acc_m, values);
-		result->orientation.azimuth = values[0];
-		result->orientation.pitch = values[1];
-		result->orientation.roll = values[2];
-#else
 		pitch = asinf(-acc.y / av);
 		roll = asinf(acc.x / av);
 		result->orientation.pitch = pitch * rad2deg;
@@ -267,7 +224,6 @@ static int convert_orientation(sensors_event_t *raw, sensors_event_t *result,
 		azimuth = atan2(-(mag.x) * cosf(roll) + mag.z * sinf(roll),
 				mag.x*sinf(pitch)*sinf(roll) + mag.y*cosf(pitch) + mag.z*sinf(pitch)*cosf(roll));
 		result->orientation.azimuth =  azimuth * rad2deg;
-#endif
 		result->orientation.status = 3;
 	}
 
@@ -431,8 +387,7 @@ static int config_pocket(int cmd, struct sensor_algo_args *args)
 	return 0;
 }
 
-static int cal_init(const struct sensor_cal_module_t *module,
-		struct sensor_algo_args *args __attribute__((unused)))
+static int cal_init(const struct sensor_cal_module_t *module __attribute__((unused)))
 {
 	AKMPRMS *prms = &g_prms;
 
@@ -467,16 +422,6 @@ static int cal_get_algo_list(const struct sensor_cal_algo_t **algo)
 	*algo = algo_list;
 	return 0;
 }
-
-static struct sensor_algo_methods_t st480_compass_methods = {
-	.convert = st480_convert_magnetic,
-	.config = config_magnetic,
-};
-
-static const char* st480_compass_match_table[] = {
-	"st480",
-	NULL
-};
 
 static struct sensor_algo_methods_t compass_methods = {
 	.convert = convert_magnetic,
@@ -524,22 +469,11 @@ static struct sensor_algo_methods_t pocket_methods = {
 };
 
 static const char* pocket_match_table[] = {
-	"ltr553-pocket",
-	"ap3426-pocket",
 	"oem-pocket",
 	NULL
 };
 
 static struct sensor_cal_algo_t algo_list[] = {
-	{
-		.tag = SENSOR_CAL_ALGO_TAG,
-		.version = SENSOR_CAL_ALGO_VERSION,
-		.type = SENSOR_TYPE_MAGNETIC_FIELD,
-		.compatible = st480_compass_match_table,
-		.module = &SENSOR_CAL_MODULE_INFO,
-		.methods = &st480_compass_methods,
-	},
-
 	{
 		.tag = SENSOR_CAL_ALGO_TAG,
 		.version = SENSOR_CAL_ALGO_VERSION,

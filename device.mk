@@ -90,10 +90,9 @@ PRODUCT_COPY_FILES += \
 # Sensors
 PRODUCT_PACKAGES += \
     android.hardware.sensors@1.0-impl \
-    android.hardware.sensors@1.0-service.mobee01a \
-    sensors.msm8916 \
-    sensors.native \
-    hals.conf
+    libjni_proximityCalibrate \
+    ProximityCalibrate \
+    sensors.msm8916
 
 # Thermal
 PRODUCT_COPY_FILES += \

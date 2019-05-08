@@ -30,21 +30,16 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "vendor_init.h"
-#include "property_service.h"
-#include "log.h"
-#include "util.h"
-
-#include "init_msm8916.h"
-#include <android-base/file.h>
 #include <android-base/properties.h>
-#include <android-base/strings.h>
+
+#include "property_service.h"
+#include "vendor_init.h"
+#include "util.h"
+#include "init_msm8916.h"
 
 using android::base::GetProperty;
-using android::base::ReadFileToString;
-using android::base::Trim;
 using android::init::property_set;
-
+using android::init::import_kernel_cmdline;
 static int display_density = 320;
 
 static void import_cmdline(const std::string& key,
@@ -59,12 +54,25 @@ static void import_cmdline(const std::string& key,
 
 void init_target_properties()
 {
-    std::string device;
-
+    char density[5];
+    import_kernel_cmdline(0, import_cmdline);
+    snprintf(density, sizeof(density), "%d", display_density);
+    property_set("ro.sf.lcd_density", density);
+    if (display_density == 480) {
+        property_set("ro.product.model", "YU5510");
+        property_set("dalvik.vm.heapstartsize", "16m");
+        property_set("dalvik.vm.heapgrowthlimit", "192m");
+        property_set("dalvik.vm.heapsize", "512m");
+        property_set("dalvik.vm.heaptargetutilization", "0.75");
+        property_set("dalvik.vm.heapminfree", "2m");
+        property_set("dalvik.vm.heapmaxfree", "8m");
+    } else {
+        property_set("ro.product.model", "AO5510");
         property_set("dalvik.vm.heapstartsize", "8m");
         property_set("dalvik.vm.heapgrowthlimit", "192m");
         property_set("dalvik.vm.heapsize", "512m");
         property_set("dalvik.vm.heaptargetutilization", "0.75");
         property_set("dalvik.vm.heapminfree", "512k");
         property_set("dalvik.vm.heapmaxfree", "8m");
+    }
 }

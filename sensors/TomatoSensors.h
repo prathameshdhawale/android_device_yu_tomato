@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2014, The Linux Foundation. All rights reserved.
+Copyright (c) 2015, The CyanogenMod Project
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -27,31 +27,19 @@ OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
 IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------*/
 
-#ifndef SENSOR_XML_H
-#define SENSOR_XML_H
+#ifndef _TOMATO_SENSORS_H
+#define _TOMATO_SENSORS_H
 
-#include <sensors_extension.h>
-#include <libxml/parser.h>
-#include <libxml/tree.h>
-#include <utils/Singleton.h>
+#include <sensors.h>
+#include "NativeSensorManager.h"
 
-using namespace android;
+struct TomatoSensors {
 
-enum {
-    CAL_STATIC,
-    CAL_DYNAMIC,
-    CAL_COUNT,
-};
+    static struct sensor_t static_sensors[];
 
-class sensors_XML : public Singleton<sensors_XML> {
-    friend class Singleton<sensors_XML>;
-    xmlDocPtr mdoc;
 public:
-    int read_sensors_params(struct sensor_t *sensor, struct cal_result_t *cal_result, int state);
-    int write_sensors_params(struct sensor_t *sensor, struct cal_result_t *cal_result, int state);
-    sensors_XML();
-    int sensors_calibrate_reset();
-    int sensors_rm_file();
+    static int getStaticSensors(struct SensorContext *context, int id);
+
 };
 
 #endif

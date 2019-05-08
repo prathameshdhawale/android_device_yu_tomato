@@ -45,13 +45,10 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "AccelSensor.h"
 #include "LightSensor.h"
 #include "ProximitySensor.h"
-#include "CompassSensor.h"
 #include "GyroSensor.h"
-#include "PressureSensor.h"
 #include "VirtualSensor.h"
 
 #include "sensors_extension.h"
-#include "sensors_XML.h"
 using namespace android;
 
 #define EVENT_PATH "/dev/input/"
@@ -75,8 +72,8 @@ enum {
 struct SensorContext {
 	char   name[SYSFS_MAXLEN]; // name of the sensor
 	char   vendor[SYSFS_MAXLEN]; // vendor of the sensor
-	char   enable_path[PATH_MAX]; // the control path of this sensor
-	char   data_path[PATH_MAX]; // the data path to get sensor events
+	char   *enable_path; // the control path of this sensor
+	char   *data_path; // the data path to get sensor events
 
 	struct sensor_t *sensor; // point to the sensor_t structure in the sensor list
 	SensorBase     *driver; // point to the sensor driver instance
@@ -92,8 +89,8 @@ struct SensorContext {
 };
 
 struct SensorEventMap {
-	char data_name[80];
-	char data_path[PATH_MAX];
+      char data_name[80];
+      char data_path[PATH_MAX];
 };
 
 struct SysfsMap {
@@ -118,28 +115,21 @@ class NativeSensorManager : public Singleton<NativeSensorManager> {
 	struct SensorEventMap event_list[MAX_SENSORS];
 	static const struct SysfsMap node_map[];
 	static const struct sensor_t virtualSensorList[];
-	static char virtualSensorName[][SYSFS_MAXLEN];
 
 	int mSensorCount;
-	bool mScanned;
-	int mEventCount;
 
 	DefaultKeyedVector<int32_t, struct SensorContext*> type_map;
 	DefaultKeyedVector<int32_t, struct SensorContext*> handle_map;
 	DefaultKeyedVector<int, struct SensorContext*> fd_map;
 
-	void compositeVirtualSensorName(const char *sensor_name, char *chip_name, int type);
 	int getNode(char *buf, char *path, const struct SysfsMap *map);
 	int getSensorListInner();
 	int getDataInfo();
 	int registerListener(struct SensorContext *hw, struct SensorContext *virt);
 	int unregisterListener(struct SensorContext *hw, struct SensorContext *virt);
 	int syncDelay(int handle);
-	int initCalibrate(const SensorContext *list);
 	int initVirtualSensor(struct SensorContext *ctx, int handle, struct sensor_t info);
 	int addDependency(struct SensorContext *ctx, int handle);
-	int getEventPath(const char *sysfs_path, char *event_path);
-	int getEventPathOld(const struct SensorContext *list, char *event_path);
 public:
 	int getSensorList(const sensor_t **list);
 	inline SensorContext* getInfoByFd(int fd) { return fd_map.valueFor(fd); };
@@ -152,7 +142,6 @@ public:
 	int setDelay(int handle, int64_t ns);
 	int syncLatency(int handle);
 	int readEvents(int handle, sensors_event_t *data, int count);
-	int calibrate(int handle, struct cal_cmd_t *para);
 	int batch(int handle, int64_t sample_ns, int64_t latency_ns);
 	int flush(int handle);
 };
